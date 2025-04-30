@@ -1,0 +1,43 @@
+services:
+  ssh-tunnel:
+    build: . # Build from the Dockerfile in the current directory
+    container_name: ssh_proxy_tunnel
+    # Command to run the SSH tunnel (overrides any CMD in Dockerfile)
+    command: [
+        "/usr/bin/ssh",
+        "-N",
+        "-D",
+        "0.0.0.0:1080",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-i",
+        "/root/.ssh/id_rsa",
+        "$SSH_TARGET", # Docker Compose substitutes this variable
+      ]
+    environment:
+      SSH_TARGET: user@123.123.123.123
+    volumes:
+      # Mount your local private key into the container
+      # NOTE: Ensure id_rsa_proxy exists locally and has correct permissions (e.g., 600)
+      - ./private.key:/root/.ssh/id_rsa:z
+    # restart: unless-stopped
+    networks:
+      - proxy-test-net
+
+  tester:
+    image: alpine:latest
+    container_name: proxy_tester
+    # Install curl and keep the container running
+    command: >
+      sh -c "apk update && apk add --no-cache curl && sleep infinity"
+    depends_on:
+      - ssh-tunnel # Wait for the tunnel container to start (doesn't guarantee tunnel is ready)
+    networks:
+      - proxy-test-net
+    # Optional: Add environment variables if needed for testing
+
+networks:
+  proxy-test-net: # Define a custom network for the services
+    driver: bridge
